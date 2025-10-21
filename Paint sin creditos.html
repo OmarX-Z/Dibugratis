@@ -1,0 +1,382 @@
+<!doctype html>
+
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini-PAINT — Editor de dibujo</title>
+  <style>
+    :root{
+      --bg:#0f1724; --panel:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --tool-bg:#111827;
+    }
+    *{box-sizing:border-box;font-family:Inter, system-ui, Arial, sans-serif}
+    body{margin:0;background:linear-gradient(180deg,#071027 0%, #071020 100%);color:#e6eef6;min-height:100vh;display:flex;flex-direction:column}
+    header{padding:12px 18px;display:flex;align-items:center;gap:12px;background:linear-gradient(90deg, rgba(255,255,255,0.02), transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+    header h1{font-size:16px;margin:0}
+    .app{display:flex;flex:1;gap:12px;padding:14px}
+    .sidebar{width:300px;background:rgba(255,255,255,0.02);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:12px}
+    .canvas-wrap{flex:1;display:flex;flex-direction:column}
+    .tools{display:flex;flex-wrap:wrap;gap:8px}
+    button, .tool{background:var(--tool-bg);color:var(--muted);border:0;padding:8px;border-radius:8px;cursor:pointer}
+    button.active{outline:2px solid var(--accent);color:#e6f9fb}
+    label{font-size:13px;color:var(--muted)}
+    input[type=color]{width:44px;height:36px;border-radius:8px;border:0;padding:0}
+    input[type=range]{width:100%}
+    .row{display:flex;gap:8px;align-items:center}
+    .templates{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .template{background:rgba(255,255,255,0.02);height:64px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    canvas{flex:1;background:white;border-radius:8px;box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+    .bottom-actions{display:flex;gap:8px;align-items:center}
+    .right-panel{width:280px;background:rgba(255,255,255,0.02);padding:12px;border-radius:12px;display:flex;flex-direction:column;gap:10px}
+    .small{font-size:12px;color:var(--muted)}
+    .file-input{display:none}
+    .templates h3{grid-column:1/-1;margin:0;font-size:14px;color:var(--muted)}
+    .hint{font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mini-PAINT — Editor de dibujo</h1>
+    <div class="hint">Herramientas: pincel, borrador, formas, insertar imágenes, plantillas, guardar/descargar</div>
+  </header>  <div class="app">
+    <div class="sidebar">
+      <div>
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <div class="tools" id="tools">
+            <button class="tool active" data-tool="brush">Pincel</button>
+            <button class="tool" data-tool="eraser">Borrador</button>
+            <button class="tool" data-tool="line">Línea</button>
+            <button class="tool" data-tool="rect">Rectángulo</button>
+            <button class="tool" data-tool="circle">Círculo</button>
+            <button class="tool" data-tool="stamp">Sello</button>
+          </div>
+        </div>
+      </div><div>
+    <label>Color</label>
+    <div class="row">
+      <input type="color" id="color" value="#1f2937">
+      <input type="text" id="hex" value="#1f2937" style="flex:1;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:inherit">
+    </div>
+  </div>
+
+  <div>
+    <label>Tamaño</label>
+    <input id="size" type="range" min="1" max="80" value="6">
+    <div class="row small"><span id="sizeVal">6</span> px</div>
+  </div>
+
+  <div>
+    <label>Plantillas</label>
+    <div class="templates" id="templateList">
+      <div class="template" data-template="house" title="Casa">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-8.5z"/></svg>
+      </div>
+      <div class="template" data-template="tree" title="Árbol">
+        <svg width="48" height="48" viewBox="0 0 24 24"><path d="M12 2l3 6h4l-3 4 3 4h-4l-3 6-3-6H5l3-4-3-4h4l3-6z"/></svg>
+      </div>
+      <div class="template" data-template="car" title="Auto">
+        <svg width="48" height="48" viewBox="0 0 24 24"><path d="M3 13l2-5h14l2 5v4a1 1 0 0 1-1 1h-1a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H4a1 1 0 0 1-1-1v-4z"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <label>Insertar imagen</label>
+    <div class="row">
+      <input type="file" id="imgInput" accept="image/*" class="file-input">
+      <button class="tool" id="btnInsert">Seleccionar imagen</button>
+    </div>
+  </div>
+
+  <div>
+    <label>Acciones</label>
+    <div class="row bottom-actions">
+      <button class="tool" id="undo">Deshacer</button>
+      <button class="tool" id="redo">Rehacer</button>
+      <button class="tool" id="clear">Limpiar</button>
+      <button class="tool" id="save">Guardar PNG</button>
+    </div>
+  </div>
+
+  <div class="small">Consejo: alterna entre herramientas con las teclas B (pincel), E (borrador), R (rect), C (círculo), L (línea), S (sello)</div>
+</div>
+
+<div class="canvas-wrap">
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <div class="row" style="gap:12px">
+      <div class="small">Herramienta activa: <strong id="activeTool">Pincel</strong></div>
+    </div>
+  </div>
+
+  <div style="flex:1;display:flex">
+    <canvas id="draw" width="1200" height="720"></canvas>
+  </div>
+</div>
+
+<div class="right-panel">
+  <div>
+    <label>Paleta rápida</label>
+    <div class="row">
+      <button class="tool quick" data-color="#000000" style="width:36px;height:36px"></button>
+      <button class="tool quick" data-color="#ffffff" style="width:36px;height:36px"></button>
+      <button class="tool quick" data-color="#ef4444" style="width:36px;height:36px"></button>
+      <button class="tool quick" data-color="#f59e0b" style="width:36px;height:36px"></button>
+      <button class="tool quick" data-color="#10b981" style="width:36px;height:36px"></button>
+    </div>
+  </div>
+
+  <div>
+    <label>Plantilla cargada</label>
+    <div id="loadedTemplate" class="small">Ninguna</div>
+  </div>
+
+  <div>
+    <label>Exportar / Compartir</label>
+    <div class="row">
+      <button class="tool" id="exportSVG">Exportar SVG</button>
+      <button class="tool" id="copyPNG">Copiar PNG al portapapeles</button>
+    </div>
+  </div>
+
+  <div>
+    <label>Atajos</label>
+    <div class="small">Ctrl/Cmd + Z : Deshacer<br>Ctrl/Cmd + Y : Rehacer<br>Ctrl/Cmd + S : Guardar</div>
+  </div>
+
+</div>
+
+  </div>  <script>
+    // Elementos
+    const canvas = document.getElementById('draw');
+    const ctx = canvas.getContext('2d');
+    const tools = document.getElementById('tools');
+    const colorInput = document.getElementById('color');
+    const hexInput = document.getElementById('hex');
+    const sizeInput = document.getElementById('size');
+    const sizeVal = document.getElementById('sizeVal');
+    const activeToolLabel = document.getElementById('activeTool');
+    const templateList = document.getElementById('templateList');
+    const imgInput = document.getElementById('imgInput');
+    const btnInsert = document.getElementById('btnInsert');
+
+    // State
+    let tool = 'brush';
+    let drawing = false;
+    let start = {x:0,y:0};
+    let prev = null;
+    let color = colorInput.value;
+    let size = Number(sizeInput.value);
+    let history = [];
+    let historyIndex = -1;
+    let stampImg = null;
+
+    // Init canvas white background
+    function resetCanvasBg(){
+      const w = canvas.width, h = canvas.height;
+      const tmp = document.createElement('canvas'); tmp.width=w; tmp.height=h; const tctx=tmp.getContext('2d');
+      // white background so PNG will have background
+      tctx.fillStyle = '#ffffff'; tctx.fillRect(0,0,w,h);
+      // copy previous if any
+      tctx.drawImage(canvas,0,0);
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(tmp,0,0);
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    resetCanvasBg();
+
+    // Tool selection
+    tools.addEventListener('click', e=>{
+      const btn = e.target.closest('[data-tool]'); if(!btn) return;
+      document.querySelectorAll('#tools .tool').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      tool = btn.dataset.tool;
+      activeToolLabel.textContent = btn.textContent;
+    });
+
+    // color binding
+    colorInput.addEventListener('input', e=>{ color = e.target.value; hexInput.value = color; });
+    hexInput.addEventListener('change', e=>{ color = e.target.value; colorInput.value = color; });
+
+    // size
+    sizeInput.addEventListener('input', e=>{ size = Number(e.target.value); sizeVal.textContent = size; });
+
+    // quick palette
+    document.querySelectorAll('.quick').forEach(b=>b.addEventListener('click',()=>{ color = b.dataset.color; colorInput.value=color; hexInput.value=color; }));
+
+    // Pointer events
+    function getPos(e){
+      const rect = canvas.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return {x: (p.clientX - rect.left) * (canvas.width/rect.width), y: (p.clientY - rect.top) * (canvas.height/rect.height)};
+    }
+
+    canvas.addEventListener('pointerdown', e=>{
+      drawing = true; prev = null; start = getPos(e);
+      if(tool === 'stamp' && stampImg){
+        ctx.drawImage(stampImg, start.x - stampImg.width/2, start.y - stampImg.height/2);
+        pushHistory(); drawing=false; return;
+      }
+      if(tool==='brush' || tool==='eraser'){
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+      }
+    });
+
+    canvas.addEventListener('pointermove', e=>{
+      if(!drawing) return;
+      const p = getPos(e);
+      if(tool==='brush' || tool==='eraser'){
+        ctx.strokeStyle = (tool==='eraser')? '#ffffff': color;
+        ctx.lineWidth = size;
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      } else {
+        // live preview for shapes: redraw from history snapshot
+        restoreSnapshot();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = size;
+        if(tool==='line'){
+          ctx.beginPath(); ctx.moveTo(start.x,start.y); ctx.lineTo(p.x,p.y); ctx.stroke();
+        } else if(tool==='rect'){
+          ctx.strokeRect(start.x, start.y, p.x-start.x, p.y-start.y);
+        } else if(tool==='circle'){
+          const rx = (p.x-start.x); const ry = (p.y-start.y); const r = Math.sqrt(rx*rx+ry*ry);
+          ctx.beginPath(); ctx.arc(start.x, start.y, r, 0, Math.PI*2); ctx.stroke();
+        }
+      }
+    });
+
+    canvas.addEventListener('pointerup', e=>{
+      if(!drawing) return; drawing=false;
+      const p = getPos(e);
+      if(tool==='brush' || tool==='eraser'){
+        ctx.closePath(); pushHistory();
+      } else if(tool==='line'){
+        ctx.beginPath(); ctx.moveTo(start.x,start.y); ctx.lineTo(p.x,p.y); ctx.stroke(); pushHistory();
+      } else if(tool==='rect'){
+        ctx.strokeRect(start.x, start.y, p.x-start.x, p.y-start.y); pushHistory();
+      } else if(tool==='circle'){
+        const rx = (p.x-start.x); const ry = (p.y-start.y); const r = Math.sqrt(rx*rx+ry*ry);
+        ctx.beginPath(); ctx.arc(start.x, start.y, r, 0, Math.PI*2); ctx.stroke(); pushHistory();
+      }
+    });
+
+    // History (simple)
+    function pushHistory(){
+      // trim forward
+      history = history.slice(0, historyIndex+1);
+      history.push(canvas.toDataURL());
+      historyIndex = history.length-1;
+      // limit history
+      if(history.length>50) { history.shift(); historyIndex = history.length-1; }
+    }
+    function restoreSnapshot(idx = historyIndex){
+      if(history.length===0) return;
+      const img = new Image(); img.src = history[idx]; img.onload = ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); };
+    }
+    document.getElementById('undo').addEventListener('click',()=>{ if(historyIndex>0){ historyIndex--; restoreSnapshot(); } });
+    document.getElementById('redo').addEventListener('click',()=>{ if(historyIndex < history.length-1){ historyIndex++; restoreSnapshot(); } });
+
+    // Clear
+    document.getElementById('clear').addEventListener('click', ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); resetCanvasBg(); pushHistory(); });
+
+    // Save
+    document.getElementById('save').addEventListener('click', ()=>{ const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download='dibujo.png'; a.click(); });
+
+    // Export SVG (very naive: export as embedded raster data in SVG)
+    document.getElementById('exportSVG').addEventListener('click', ()=>{
+      const data = canvas.toDataURL();
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${canvas.width}' height='${canvas.height}'><image href='${data}' width='${canvas.width}' height='${canvas.height}'/></svg>`;
+      const blob = new Blob([svg],{type:'image/svg+xml'});
+      const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='dibujo.svg'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // Copy PNG to clipboard
+    async function copyCanvasToClipboard(){
+      try{
+        const blob = await (await fetch(canvas.toDataURL())).blob();
+        await navigator.clipboard.write([new ClipboardItem({[blob.type]: blob})]);
+        alert('Imagen copiada al portapapeles');
+      }catch(e){ alert('No se pudo copiar: ' + e); }
+    }
+    document.getElementById('copyPNG').addEventListener('click', copyCanvasToClipboard);
+
+    // Insert image from file
+    btnInsert.addEventListener('click', ()=>imgInput.click());
+    imgInput.addEventListener('change', e=>{
+      const file = e.target.files[0]; if(!file) return;
+      const img = new Image(); img.onload = ()=>{ ctx.drawImage(img, 0, 0, canvas.width, canvas.height); pushHistory(); }; img.src = URL.createObjectURL(file);
+    });
+
+    // Templates
+    const templates = {
+      house: function(){ ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#222'; ctx.fillRect(200,300,400,220); ctx.beginPath(); ctx.moveTo(200,300); ctx.lineTo(400,170); ctx.lineTo(600,300); ctx.closePath(); ctx.fill(); },
+      tree: function(){ ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#0b6d0b'; ctx.beginPath(); ctx.arc(350,250,80,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#7f4d2b'; ctx.fillRect(340,300,20,120); },
+      car: function(){ ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#cc0000'; ctx.fillRect(220,300,480,130); ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(320,450,40,0,Math.PI*2); ctx.arc(620,450,40,0,Math.PI*2); ctx.fill(); }
+    };
+    templateList.addEventListener('click', e=>{
+      const t = e.target.closest('.template'); if(!t) return; const key = t.dataset.template; templates[key](); document.getElementById('loadedTemplate').textContent = key; pushHistory();
+    });
+
+    // Simple stamp: load one of the template svgs as image
+    document.querySelectorAll('#templateList .template').forEach(t=>t.addEventListener('dblclick', ()=>{
+      const svg = new XMLSerializer().serializeToString(t.querySelector('svg'));
+      const img = new Image(); img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); img.onload = ()=>{ stampImg = img; alert('Sello cargado: doble clic sobre lienzo para colocar'); };
+    }));
+
+    // keyboard shortcuts
+    window.addEventListener('keydown', e=>{
+      if(e.ctrlKey || e.metaKey){
+        if(e.key.toLowerCase()==='z'){ e.preventDefault(); document.getElementById('undo').click(); }
+        if(e.key.toLowerCase()==='y'){ e.preventDefault(); document.getElementById('redo').click(); }
+        if(e.key.toLowerCase()==='s'){ e.preventDefault(); document.getElementById('save').click(); }
+      } else {
+        const k = e.key.toLowerCase();
+        if(k==='b'){ document.querySelector('[data-tool="brush"]').click(); }
+        if(k==='e'){ document.querySelector('[data-tool="eraser"]').click(); }
+        if(k==='l'){ document.querySelector('[data-tool="line"]').click(); }
+        if(k==='r'){ document.querySelector('[data-tool="rect"]').click(); }
+        if(k==='c'){ document.querySelector('[data-tool="circle"]').click(); }
+        if(k==='s'){ document.querySelector('[data-tool="stamp"]').click(); }
+      }
+    });
+
+    // Clipboard paste image support
+    window.addEventListener('paste', e=>{
+      const items = e.clipboardData.items; for(const i of items){ if(i.type.indexOf('image')!==-1){ const file = i.getAsFile(); const img = new Image(); img.onload = ()=>{ ctx.drawImage(img,0,0,canvas.width,canvas.height); pushHistory(); }; img.src = URL.createObjectURL(file); }
+      }
+    });
+
+    // allow double click on canvas to place current stamp
+    canvas.addEventListener('dblclick', e=>{
+      if(stampImg){ const p = getPos(e); ctx.drawImage(stampImg, p.x - stampImg.width/2, p.y - stampImg.height/2); pushHistory(); }
+    });
+
+    // prepare initial empty history frame
+    pushHistory();
+
+    // Responsive: adjust internal canvas draw scale when resized
+    function fitCanvas(){
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(800, rect.width); const h = Math.max(400, rect.height);
+      // keep internal resolution at design size
+      canvas.width = Math.floor(rect.width * ratio);
+      canvas.height = Math.floor(rect.height * ratio);
+      ctx.setTransform(ratio,0,0,ratio,0,0);
+      // redraw from current history frame
+      restoreSnapshot();
+    }
+    window.addEventListener('resize', ()=>{/* optional: fitCanvas(); */});
+
+    // small helper to restore snapshot synchronously using Image object caching
+    let snapshotImg = null;
+    function restoreSnapshot(){ if(historyIndex<0) return; const src = history[historyIndex]; snapshotImg = new Image(); snapshotImg.src = src; snapshotImg.onload = ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(snapshotImg,0,0); }; }
+
+  </script></body>
+<style>html{
+ color:darkviolet;
+ font-size:25px;
+ font-weight:600;
+}
+</style><script>/*Here write your javascript code*/</script></html>
